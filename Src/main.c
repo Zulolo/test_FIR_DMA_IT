@@ -154,8 +154,8 @@ int main(void)
 
   while(FilterConfigCallbackCount == 0);
 
-  /*## Preload the input and output buffers ####################################*/
-  if (HAL_FMAC_FilterPreload_DMA(&hfmac, aInputValues1, INPUT_ARRAY_1_SIZE, NULL, 0) != HAL_OK)
+  /*## Preload the dummy input ####################################*/
+  if (HAL_FMAC_FilterPreload_DMA(&hfmac, aInputDummyValues, INPUT_DUMMY_ARRAY_SIZE, NULL, 0) != HAL_OK)
   {
     /* Configuration Error */
     Error_Handler();
@@ -172,71 +172,15 @@ int main(void)
   }
 
   /*## Start calculation of FIR filter in DMA/IT mode ##########################*/
-  ExpectedCalculatedFilteredDataSize = OUTPUT_ARRAY_1_SIZE;
-  if (HAL_FMAC_FilterStart(&hfmac, aCalculatedFilteredData1, &ExpectedCalculatedFilteredDataSize) != HAL_OK)
+  ExpectedCalculatedFilteredDataSize = ADC_BUF_LENGTH / 2;
+  if (HAL_FMAC_FilterStart(&hfmac, uhFilteredData, &ExpectedCalculatedFilteredDataSize) != HAL_OK)
   {
     /* Processing Error */
     Error_Handler();
-  }
-
-  /*## Append data to start the DMA process after the preloaded data handling ##*/
-  CurrentInputArraySize = INPUT_ARRAY_2_SIZE;
-  if (HAL_FMAC_AppendFilterData(&hfmac,
-                                aInputValues2,
-                                &CurrentInputArraySize) != HAL_OK)
-  {
-    ErrorCount++;
-  }
-
-  /*## Wait for the end of the handling (no new data written) ##################*/
-  /*  For simplicity reasons, this example is just waiting till the end of the
-      calculation, but the application may perform other tasks while the operation
-      is ongoing. */
-  while((HalfGetDataCallbackCount < GET_DATA_CALLBACK_COUNT) ||
-        (GetDataCallbackCount < GET_DATA_CALLBACK_COUNT) ||
-        (OutputDataReadyCallbackCount < DATA_RDY_CALLBACK_COUNT))
-  {
-    if(ErrorCount != 0)
-    {
-      /* Processing Error */
-      Error_Handler();
-    }
-  }
-
-  /*## Stop the calculation of FIR filter in polling/DMA mode ##################*/
-  if (HAL_FMAC_FilterStop(&hfmac) != HAL_OK)
-  {
-    /* Processing Error */
-    Error_Handler();
-  }
-
-  /*## Check the final error status ############################################*/
-  if(ErrorCount != 0)
-  {
-    /* Processing Error */
-    Error_Handler();
-  }
-
-  /*## Compare FMAC results to the reference values ############################*/
-  for (Index = 0; Index < OUTPUT_ARRAY_1_SIZE; Index++)
-  {
-    if (aCalculatedFilteredData1[Index]  != aRefFilteredData[Index])
-    {
-      /* Processing Error */
-      Error_Handler();
-    }
-  }
-  for (Index = 0; Index < OUTPUT_ARRAY_2_SIZE; Index++)
-  {
-    if (aCalculatedFilteredData2[Index]  != aRefFilteredData[OUTPUT_ARRAY_1_SIZE + Index])
-    {
-      /* Processing Error */
-      Error_Handler();
-    }
   }
 
   /**********************--======  ADCs  ======--***********************/
-//  uhADCxConvertedData_Voltage_mVolt = VAR_CONVERTED_DATA_INIT_VALUE;
+//  uhADCxConvertedData = VAR_CONVERTED_DATA_INIT_VALUE;
   /* Run the ADC calibration in single-ended mode */
   if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK)
   {
@@ -245,14 +189,14 @@ int main(void)
   }
   /*## Start ADC conversions ###############################################*/
   /* Start ADC group regular conversion with DMA */
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)uhADCxConvertedData_Voltage_mVolt, ADC_BUF_LENGTH ) != HAL_OK)
+  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)uhADCxConvertedData, ADC_BUF_LENGTH ) != HAL_OK)
   {
     /* ADC conversion start error */
     Error_Handler();
   }  
   
   /* Start DAC conversion with DMA */
-  if (HAL_DAC_Start_DMA(&hdac3, DAC_CHANNEL_2, (uint32_t *)uhADCxConvertedData_Voltage_mVolt, ADC_BUF_LENGTH, DAC_ALIGN_12B_R ) != HAL_OK)
+  if (HAL_DAC_Start_DMA(&hdac3, DAC_CHANNEL_2, (uint32_t *)uhFilteredData, ADC_BUF_LENGTH, DAC_ALIGN_12B_R ) != HAL_OK)
   {
     /* DAC conversion start error */
     Error_Handler();
@@ -624,54 +568,6 @@ void HAL_FMAC_FilterPreloadCallback(FMAC_HandleTypeDef *hfmac)
 }
 
 /**
-  * @brief FMAC half get data callback
-  * @par hfmac: FMAC HAL handle
-  * @retval None
-  */
-void HAL_FMAC_HalfGetDataCallback(FMAC_HandleTypeDef *hfmac)
-{
-  HalfGetDataCallbackCount++;
-}
-
-/**
-  * @brief FMAC get data callback
-  * @par hfmac: FMAC HAL handle
-  * @retval None
-  */
-void HAL_FMAC_GetDataCallback(FMAC_HandleTypeDef *hfmac)
-{
-  GetDataCallbackCount++;
-
-  if (GetDataCallbackCount == 1)
-  {
-    /* The preloaded data (1) and the appended data (2) have been handled,
-       write the following input values into FMAC (3 over 4) */
-    CurrentInputArraySize = INPUT_ARRAY_3_SIZE;
-    if (HAL_FMAC_AppendFilterData(hfmac,
-                                  aInputValues3,
-                                  &CurrentInputArraySize) != HAL_OK)
-    {
-      ErrorCount++;
-    }
-  }
-  else if (GetDataCallbackCount == 2)
-  {
-    /* Write the following input values into FMAC (4 over 4) */
-    CurrentInputArraySize = INPUT_ARRAY_4_SIZE;
-    if (HAL_FMAC_AppendFilterData(hfmac,
-                                  aInputValues4,
-                                  &CurrentInputArraySize) != HAL_OK)
-    {
-      ErrorCount++;
-    }
-  }
-  else
-  {
-    /* No more data to write */
-  }
-}
-
-/**
   * @brief FMAC output data ready callback
   * @par hfmac: FMAC HAL handle
   * @retval None
@@ -679,22 +575,6 @@ void HAL_FMAC_GetDataCallback(FMAC_HandleTypeDef *hfmac)
 void HAL_FMAC_OutputDataReadyCallback(FMAC_HandleTypeDef *hfmac)
 {
   OutputDataReadyCallbackCount++;
-
-  if (OutputDataReadyCallbackCount == 1)
-  {
-    ExpectedCalculatedFilteredDataSize = OUTPUT_ARRAY_2_SIZE;
-    if (HAL_FMAC_ConfigFilterOutputBuffer(hfmac,
-                                          aCalculatedFilteredData2,
-                                          &ExpectedCalculatedFilteredDataSize) != HAL_OK)
-    {
-      ErrorCount++;
-    }
-  }
-  else
-  {
-    /* No more data will be read, disable the FMAC read interrupt */
-    __HAL_FMAC_DISABLE_IT(hfmac, FMAC_IT_RIEN);
-  }
 }
 
 /**
@@ -706,6 +586,46 @@ void HAL_FMAC_ErrorCallback(FMAC_HandleTypeDef *hfmac)
 {
   ErrorCount++;
 }
+
+/**
+  * @brief  Conversion complete callback in non-blocking mode.
+  * @param hadc ADC handle
+  * @retval None
+  */
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{	
+	ExpectedCalculatedFilteredDataSize = ADC_BUF_LENGTH / 2;;
+	if (HAL_FMAC_ConfigFilterOutputBuffer(&hfmac, uhFilteredData + (ADC_BUF_LENGTH / 2), &ExpectedCalculatedFilteredDataSize) != HAL_OK)
+	{
+		ErrorCount++;
+	}
+	CurrentInputArraySize = ADC_BUF_LENGTH / 2;
+	if (HAL_FMAC_AppendFilterData(&hfmac, uhADCxConvertedData + (ADC_BUF_LENGTH / 2), &CurrentInputArraySize) != HAL_OK)
+	{
+		ErrorCount++;
+	}  
+}
+
+/**
+  * @brief  Conversion DMA half-transfer callback in non-blocking mode.
+  * @param hadc ADC handle
+  * @retval None
+  */
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	ExpectedCalculatedFilteredDataSize = ADC_BUF_LENGTH / 2;;
+	if (HAL_FMAC_ConfigFilterOutputBuffer(&hfmac, uhFilteredData, &ExpectedCalculatedFilteredDataSize) != HAL_OK)
+	{
+		ErrorCount++;
+	}
+	CurrentInputArraySize = ADC_BUF_LENGTH / 2;
+	if (HAL_FMAC_AppendFilterData(&hfmac, uhADCxConvertedData, &CurrentInputArraySize) != HAL_OK)
+	{
+		ErrorCount++;
+	}
+}
+
+
 /* USER CODE END 4 */
 
 /**

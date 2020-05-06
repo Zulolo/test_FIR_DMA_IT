@@ -69,29 +69,8 @@ void Error_Handler(void);
 #define DATA_NOT_READY          0
 #define DATA_READY              1
 
-/* Size of the data arrays */
-#define ARRAY_SIZE              508
-
-/* Size of the preloaded input data array (size <= INPUT_BUFFER_SIZE) */
-#define INPUT_ARRAY_1_SIZE      100
-
-/* Size of the input data arrays written during calculation */
-#define INPUT_ARRAY_2_SIZE      120
-#define INPUT_ARRAY_3_SIZE      110
-#define INPUT_ARRAY_4_SIZE      182
-
-/* Expected number of calls to HAL_FMAC_GetDataCallback */
-#define GET_DATA_CALLBACK_COUNT  3
-
-/* Size of the output data arrays read during calculation
-   Total expected size: input array size - number of feed-forward taps */
-#define OUTPUT_ARRAY_1_SIZE     259
-#define OUTPUT_ARRAY_2_SIZE     249
-
 /* Expected number of calls to HAL_FMAC_OutputDataReadyCallback */
 #define DATA_RDY_CALLBACK_COUNT 2
-
-
 
 /* Filter parameter P: number of feed-forward taps or coefficients in the range [2:127] */
 #define COEFF_VECTOR_B_SIZE     5
@@ -102,7 +81,8 @@ void Error_Handler(void);
 /* Filter parameter R: gain in the range [0:7] */
 #define GAIN                    1
 
-
+/* Size of the preloaded dummy input data array (size <= INPUT_BUFFER_SIZE) */
+#define INPUT_DUMMY_ARRAY_SIZE      (COEFF_VECTOR_B_SIZE - 1)
 
 /* Throughput parameter: extra space in the input buffer (minimum: 0) */
 #define MEMORY_PARAMETER_D1     122
